@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "vl53l0x_api.h": "c",
+        "usart.h": "c"
+    }
+}
