@@ -11,8 +11,7 @@
 #include "motor_drive.h"
 #include "test.h"
 #include "navigation.h"
-#include <vl53l0x.h>
-#include <L3GD20.h>
+#include "VL6180X_Array.h"
 
 extern "C" {
 #include "i2c.h"
@@ -20,31 +19,11 @@ extern "C" {
 #include "tim.h"
 }
 
-VL53L0X_array* mySensors;
-L3GD20* myGyro;
-l3gd20Data gyro_data;
-
-l3gd20Range_t rng=L3DS20_RANGE_250DPS;
+VL6180X_Array* mySensors;
 
 float angle = 0;
 uint8_t Message[64];
 uint8_t MessageLen;
-
-GPIO_TypeDef* XSHUT_ports [] = 
-{
-	TOF_R_XSHUT_GPIO_Port,
-	TOF_FR_XSHUT_GPIO_Port,
-	TOF_FL_XSHUT_GPIO_Port,
-	TOF_L_XSHUT_GPIO_Port
-};
-
-uint16_t XSHUT_pins [] = 
-{
-	TOF_R_XSHUT_Pin,
-	TOF_FR_XSHUT_Pin,
-	TOF_FL_XSHUT_Pin,
-	TOF_L_XSHUT_Pin
-};
 
 MotorDrive *myMotor;
 Navigation *myNavigation;
@@ -58,9 +37,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	unsigned long t1 = DWT->CYCCNT;	// Get cycle counter ticks:
 	#endif
 
-
-	// gyro_data = myGyro -> read();
- 	// angle += (gyro_data.z * 10e-3);
 	// MessageLen = sprintf((char*)Message, "angle=%d\r\n", (int)angle);
 	// HAL_UART_Transmit(&huart2, Message, MessageLen, 100); // Received an ACK at that address
 
@@ -170,23 +146,17 @@ int main_cpp()
 	float mm_per_rev = WHEEL_DIAM_MM *3.1416;
 	struct bt_command command;
 
-	myGyro = new L3GD20(
-	 	&I2C_GYRO,rng,L3GD20_ADDRESS<<1);
-
 	// Instantiate sensor array.
 	// NOTE: This assumes 4 sensors are configured in this order:
 	// 0:Right, 1:Front-Right, 2:Front-Left, 3:Left
-	mySensors = new VL53L0X_array(&I2C_SENSORS, XSHUT_ports, XSHUT_pins, 4);
+	mySensors = new VL6180X_Array(&I2C_SENSORS, 4);
 
 	// Class setup. All parameters defined in Device config tool -> User constants/Pin labels:
 	myMotor = new MotorDrive(
-			&PWM_Timer_L, PWM_TIM_ChL,
+			&PWM_TIM, PWM_TIM_ChL_Pin,
 			IN1_L_GPIO_Port, IN1_L_Pin,
-			IN2_L_GPIO_Port, IN2_L_Pin,
-			&PWM_Timer_R, PWM_TIM_ChR,
+			&PWM_TIM, PWM_TIM_ChR_Pin,
 			IN1_R_GPIO_Port, IN1_R_Pin,
-			IN2_R_GPIO_Port, IN2_R_Pin,
-			myGyro,
 			INIT_SPEED, INIT_ACCEL, mySensors);
 	myMotor->set_sp(0,0);
 
@@ -211,10 +181,6 @@ int main_cpp()
 	// {
 	// 	HAL_Delay(10);
 	// }
-	// Calibrate Gyro before starting
-	HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_SET); // Turn on LED to indicate calibration
-	myGyro->calibrate(200); // Calibrate with 200 samples
-	HAL_GPIO_WritePin(LED_USER_GPIO_Port, LED_USER_Pin, GPIO_PIN_RESET); // Turn off LED
 
 #if DEBUG_TEST
 	// --- Test and Tuning Mode ---
@@ -272,7 +238,7 @@ int main_cpp()
 					mySensors->ping();
 					char sensor_str[64];
 					int len = sprintf(sensor_str, "R:%d FR:%d FL:%d L:%d\r\n",
-							mySensors->get_distance(0),
+							(int)mySensors->get_distance(0),
 							mySensors->get_distance(1),
 							mySensors->get_distance(2),
 							mySensors->get_distance(3));

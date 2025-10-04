@@ -1,21 +1,15 @@
 /*
  * navigation.h
  *
- *  Created on: Sep 20, 2025
- *      Author: Leito.Ferr
- */
-/*
- * navigation.h
- *
- *  Created on: May 22, 2024
- *      Author: Gemini Code Assist
+ * Created on: Sep 20, 2025
+ * Author: Leito.Ferr
  */
 
 #ifndef INC_NAVIGATION_H_
 #define INC_NAVIGATION_H_
 
 #include "motor_drive.h"
-#include "vl53l0x.h"
+#include "VL6180X_Array.h" // <-- CAMBIO
 
 // Constants adapted from Python code
 #define CELL_WIDTH_MM           248.0f
@@ -60,7 +54,7 @@ struct Walls {
 class Navigation {
 public:
     // Constructor
-    Navigation(MotorDrive* motor, VL53L0X_array* sensors);
+    Navigation(MotorDrive* motor, VL6180X_Array* sensors); // <-- CAMBIO
 
     // High-level movement commands
     void move_forward_one_cell();
@@ -86,8 +80,8 @@ public:
     RobotState robot_state;
 
 private:
-    MotorDrive*    p_motor_drive;
-    VL53L0X_array* p_tof_sensors;
+    MotorDrive* p_motor_drive;
+    VL6180X_Array* p_tof_sensors; // <-- CAMBIO
 
     MazeRule   solving_rule;
 

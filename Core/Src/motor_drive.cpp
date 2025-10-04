@@ -23,20 +23,15 @@
 MotorDrive::MotorDrive(
 		TIM_HandleTypeDef* pwm_l,
 		uint16_t pwm_ch_l,
-		GPIO_TypeDef* in1_l_port_p,
-		uint16_t in1_l_pin_p,
-		GPIO_TypeDef* in2_l_port_p,
-		uint16_t in2_l_pin_p,
+		GPIO_TypeDef* dir_l_port_p,
+		uint16_t dir_l_pin_p,
 		TIM_HandleTypeDef* pwm_r,
 		uint16_t pwm_ch_r,
-		GPIO_TypeDef* in1_r_port_p,
-		uint16_t in1_r_pin_p,
-		GPIO_TypeDef* in2_r_port_p,
-		uint16_t in2_r_pin_p,
-		L3GD20* gyro_p,
+		GPIO_TypeDef* dir_r_port_p,
+		uint16_t dir_r_pin_p,
 		int speed_p,
 		int accel_p,
-		VL53L0X_array* sensors_p
+		VL6180X_Array* sensors_p
 		)
 {
 	// PWM:
@@ -45,17 +40,13 @@ MotorDrive::MotorDrive(
 	pwm_r_tim = pwm_r;
 	pwm_r_timch = pwm_ch_r;
 	ccr_scale = (pwm_l_tim->Init.Period+1) /100;
-	// Motor driver:
-	in1_l_port = in1_l_port_p;
-	in1_l_pin = in1_l_pin_p;
-	in2_l_port = in2_l_port_p;
-	in2_l_pin = in2_l_pin_p;
-	in1_r_port = in1_r_port_p;
-	in1_r_pin = in1_r_pin_p;
-	in2_r_port = in2_r_port_p;
-	in2_r_pin = in2_r_pin_p;
-	gyro = gyro_p;
-	// PID:
+	// CAMBIO: Guardar los pines de dirección
+	dir_l_port = dir_l_port_p;
+	dir_l_pin = dir_l_pin_p;
+	dir_r_port = dir_r_port_p;
+	dir_r_pin = dir_r_pin_p;
+	
+	// ... (La inicialización de PID, Wall Following, etc., no cambia) ...
 	Pid_l = new PID(&pid_l_pv, &pid_l_cv, &pid_l_sp, PID_KP, PID_KI, PID_KD, P_ON_E, DIRECT);
 	Pid_l->SetSampleTime(PID_SAMPLE_TIME_MS);
 	Pid_l->SetMode(AUTOMATIC);
@@ -69,33 +60,28 @@ MotorDrive::MotorDrive(
 	Pid_angle->SetSampleTime(PID_SAMPLE_TIME_MS);
 	Pid_angle->SetMode(MANUAL);
 	Pid_angle->SetOutputLimits(-ANGLE_PID_MAX_CV_FAST, ANGLE_PID_MAX_CV_FAST);
-	// Wall Following PID setup
 	p_tof_sensors = sensors_p;
 	wall_following_enabled = false;
 	Pid_wall = new PID(&wall_pid_pv, &wall_pid_cv, &wall_pid_sp, WALL_PID_KP, WALL_PID_KI, WALL_PID_KD, P_ON_E, REVERSE);
 	Pid_wall->SetSampleTime(PID_SAMPLE_TIME_MS);
-	Pid_wall->SetOutputLimits(-50, 50); // Limit the correction PWM value
+	Pid_wall->SetOutputLimits(-50, 50);
 	Pid_wall->SetMode(AUTOMATIC);
-	// Initialize wall following state
-	wall_distance_setpoint = WALL_DISTANCE_SETPOINT_MM; // Default value
+	wall_distance_setpoint = WALL_DISTANCE_SETPOINT_MM;
 	last_known_left_dist_mm = WALL_DISTANCE_SETPOINT_MM;
 	last_known_right_dist_mm = WALL_DISTANCE_SETPOINT_MM;
-	// Initialize wall sensor history
 	wall_sensor_hist_idx = 0;
 	for (int i = 0; i < WALL_SENSOR_FILTER_SIZE; ++i) {
 		wall_sensor_left_hist[i] = 0;
 		wall_sensor_right_hist[i] = 0;
 	}
-
 	move_state = MOTOR_IDLE;
-
 	mm_per_pulse = WHEEL_DIAM_MM*3.1416/ENCODER_PPR;
 	set_speed(speed_p);
 	set_accel(accel_p);
 	bias = PID_BIAS;
 
-	stop_coast();	// Start with motor stopped
-	HAL_TIM_PWM_Start(pwm_l_tim, pwm_l_timch); // Start PWM channels
+	stop_coast();
+	HAL_TIM_PWM_Start(pwm_l_tim, pwm_l_timch);
 	HAL_TIM_PWM_Start(pwm_r_tim, pwm_r_timch);
 }
 
@@ -354,14 +340,10 @@ void MotorDrive::turn(int angle_deg, uint32_t timeout_ms)
  */
 void MotorDrive::stop_coast()
 {
-	//HAL_TIM_PWM_Stop(pwm_l_tim, pwm_l_timch);
 	pid_stop = true;
 	wall_following_enabled = false;
 	move_state = MOTOR_IDLE;
-	HAL_GPIO_WritePin(in1_l_port, in1_l_pin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(in2_l_port, in2_l_pin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(in1_r_port, in1_r_pin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(in2_r_port, in2_r_pin, GPIO_PIN_RESET);
+	set_pwm_duty(0, 0);
 }
 
 /*
@@ -371,15 +353,12 @@ void MotorDrive::stop_coast()
  */
 void MotorDrive::stop_brake()
 {
-	//HAL_TIM_PWM_Stop(pwm_l_tim, pwm_l_timch);
 	pid_stop = true;
 	wall_following_enabled = false;
 	move_state = MOTOR_IDLE;
-	HAL_GPIO_WritePin(in1_l_port, in1_l_pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(in2_l_port, in2_l_pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(in1_r_port, in1_r_pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(in2_r_port, in2_r_pin, GPIO_PIN_SET);
+	set_pwm_duty(0, 0);
 }
+
 
 /*
 	Function: set_pwm_duty
@@ -391,29 +370,24 @@ void MotorDrive::stop_brake()
  */
 void MotorDrive::set_pwm_duty(double duty_r, double duty_l)
 {
-	uint16_t final_duty_l, final_duty_r;
+    // Asegura que los valores sean absolutos, ya que el signo se usó para la dirección
+	duty_l = fabs(duty_l);
+	duty_r = fabs(duty_r);
 
-	// Left Motor
-	duty_l = fabs(duty_l); // Get absolute value
-	if (duty_l > 100.0) duty_l = 100.0; // Cap at 100%
+	// Limita al 100%
+	if (duty_l > 100.0) duty_l = 100.0;
+	if (duty_r > 100.0) duty_r = 100.0;
 
-	if (duty_l > 0.0) { // Only apply dead-zone compensation if motor should be moving
-		duty_l += MIN_PWM_DUTY;
-		if (duty_l > 100.0) duty_l = 100.0; // Recalculate cap
-	}
-	final_duty_l = (uint16_t)(duty_l * ccr_scale);
-	__HAL_TIM_SET_COMPARE(pwm_l_tim, pwm_l_timch, final_duty_l);
+    // Aplica zona muerta si el motor debe moverse
+	if (duty_l > 0.0) duty_l += MIN_PWM_DUTY;
+	if (duty_r > 0.0) duty_r += MIN_PWM_DUTY;
 
-	// Right Motor
-	duty_r = fabs(duty_r); // Get absolute value
-	if (duty_r > 100.0) duty_r = 100.0; // Cap at 100%
+    // Vuelve a limitar en caso de que la zona muerta exceda el 100%
+    if (duty_l > 100.0) duty_l = 100.0;
+	if (duty_r > 100.0) duty_r = 100.0;
 
-	if (duty_r > 0.0) { // Only apply dead-zone compensation if motor should be moving
-		duty_r += MIN_PWM_DUTY;
-		if (duty_r > 100.0) duty_r = 100.0; // Recalculate cap
-	}
-	final_duty_r = (uint16_t)(duty_r * ccr_scale);
-	__HAL_TIM_SET_COMPARE(pwm_r_tim, pwm_r_timch, final_duty_r);
+	__HAL_TIM_SET_COMPARE(pwm_l_tim, pwm_l_timch, (uint16_t)(duty_l * ccr_scale));
+	__HAL_TIM_SET_COMPARE(pwm_r_tim, pwm_r_timch, (uint16_t)(duty_r * ccr_scale));
 }
 
 /*
@@ -709,122 +683,74 @@ void MotorDrive::update_pid()
 
 	if (move_state == TURNING)
 	{
-		// Update angle from gyro
-		l3gd20Data gyro_data = gyro->read();
-		// Integrate angular velocity to get angle. Sample time is PID_SAMPLE_TIME_MS.
-		angle_pv += (gyro_data.z * (PID_SAMPLE_TIME_MS / 1000.0));
-
-		// Compute angle PID. The setpoint (angle_sp) is now updated by the turn() function's state machine.
 		Pid_angle->Compute();
 
-		// angle_cv will be positive for right turn, negative for left turn.
-		// It represents the turning "effort".
-		// We can apply this to the wheels differentially.
-		if (angle_cv > 0) { // Turn right
+		// CAMBIO: El signo de angle_cv controla la dirección
+		if (angle_cv > 0) { // Girar a la derecha
 			_dir_fwd_r();
 			_dir_rev_l();
-		} else { // Turn left
+		} else { // Girar a la izquierda
 			_dir_rev_r();
 			_dir_fwd_l();
 		}
-		set_pwm_duty(angle_cv, angle_cv); // Same duty, opposite directions
+		// Se usa el valor absoluto para la velocidad
+		set_pwm_duty(angle_cv, angle_cv);
 	}
 	else if (move_state == MOVING_FWD)
 	{
-		// To decouple distance and steering control, we use a single PID
-		// for the robot's average forward distance, and the wall-following PID for steering.
-
-		// 1. Calculate the average distance from both encoders. This represents the
-		//    forward travel of the robot's center.
 		double average_pv = (pid_l_pv + pid_r_pv) / 2.0;
-
-		// 2. Temporarily use this average as the input for our master distance PID (Pid_l).
-		//    We save the original left PV and restore it later to not mess up other logic (like telemetry).
 		double original_pid_l_pv = pid_l_pv;
 		pid_l_pv = average_pv;
-
-		// 3. Compute the master distance PID. Its setpoint (pid_l_sp) is ramped in move_forward().
 		Pid_l->Compute();
-
-		// 4. Restore the original left PV.
 		pid_l_pv = original_pid_l_pv;
-
-		// Pid_r is not used for forward movement control to avoid conflicts.
 
 		double wall_correction = 0.0;
 		if (wall_following_enabled)
 		{
-			// --- Sensor reading and filtering ---
-			// The sensor pings are now done in the main loop (inside move_forward).
-			// Here, we just get the latest values and update the filter.
-			// Note: get_distance() returns the last measured value, it does not trigger a new measurement.
+			// ... (lógica de wall following no cambia) ...
 			uint16_t raw_right_dist = p_tof_sensors->get_distance(0);
 			uint16_t raw_left_dist = p_tof_sensors->get_distance(3);
-
-			// --- Intersection-proof Filtering ---
-			// Check for wall presence based on raw sensor data.
 			bool right_wall_present = raw_right_dist < WALL_THRESHOLD_MM;
 			bool left_wall_present  = raw_left_dist  < WALL_THRESHOLD_MM;
-
-			// If a wall is present, use its value for the filter and update the last known good distance.
-			// If a wall is NOT present (intersection), feed the filter with the last known good distance.
-			// This prevents large out-of-range values (8191) from polluting the moving average.
 			if (right_wall_present) {
 				wall_sensor_right_hist[wall_sensor_hist_idx] = raw_right_dist;
 				last_known_right_dist_mm = (float)raw_right_dist;
 			} else {
 				wall_sensor_right_hist[wall_sensor_hist_idx] = (uint16_t)last_known_right_dist_mm;
 			}
-
 			if (left_wall_present) {
 				wall_sensor_left_hist[wall_sensor_hist_idx] = raw_left_dist;
 				last_known_left_dist_mm = (float)raw_left_dist;
 			} else {
 				wall_sensor_left_hist[wall_sensor_hist_idx] = (uint16_t)last_known_left_dist_mm;
 			}
-
-			// Increment index for the circular buffer.
 			wall_sensor_hist_idx = (wall_sensor_hist_idx + 1) % WALL_SENSOR_FILTER_SIZE;
-
-			// Calculate the average of the last N readings.
 			uint32_t sum_right = 0;
 			uint32_t sum_left = 0;
 			for (int i = 0; i < WALL_SENSOR_FILTER_SIZE; ++i) {
 				sum_right += wall_sensor_right_hist[i];
 				sum_left += wall_sensor_left_hist[i];
 			}
-			
 			float right_dist_avg = (float)sum_right / WALL_SENSOR_FILTER_SIZE;
 			float left_dist_avg  = (float)sum_left / WALL_SENSOR_FILTER_SIZE;
-			// --- Unified PID Calculation ---
-			// The error is the difference between the stabilized, filtered distances.
-			// The setpoint is 0, aiming for perfect centering.
 			wall_pid_pv = right_dist_avg - left_dist_avg;
 			wall_pid_sp = 0.0;
 			Pid_wall->Compute();
 			wall_correction = wall_pid_cv;
-			
 		}
 
-		// 5. Combine the outputs.
-		// The master distance PID output (pid_l_cv) determines the base speed.
-		// The wall follower PID output (wall_correction) provides steering.
-
-		// Feed-forward for the desired speed.
-		// The 'bias' variable acts as a feed-forward gain (Kff).
-		// It should be tuned to convert speed (mm/s) to a rough PWM percentage.
-		// A good starting value might be around 0.1 (e.g., 250 mm/s * 0.1 = 25% PWM).
-		// This 'ff' term is the main driver of speed, while the PID corrects for position errors.
 		double ff = bias * current_speed;
 		double base_speed_cv = pid_l_cv + ff;
 
-		// A positive wall_correction steers LEFT (increase left speed, decrease right).
 		double cv_left = base_speed_cv + wall_correction;
 		double cv_right = base_speed_cv - wall_correction;
-		// Update pwm duty % and select forward or reverse direction for the motor driver:
+		
+		// CAMBIO: Determinar dirección basado en el signo del CV
+		if (cv_left >= 0) _dir_fwd_l(); else _dir_rev_l();
+		if (cv_right >= 0) _dir_fwd_r(); else _dir_rev_r();
+		
+		// Usar valor absoluto para el PWM
 		set_pwm_duty(cv_right, cv_left);
-		_dir_fwd_l();
-		_dir_fwd_r();
 	}
 }
 
@@ -865,38 +791,22 @@ void MotorDrive::reset_pid(int dir)
  */
 void MotorDrive::_dir_fwd_l()
 {
-	HAL_GPIO_WritePin(in1_l_port, in1_l_pin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(in2_l_port, in2_l_pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(dir_l_port, dir_l_pin, GPIO_PIN_RESET);
 }
-/*
-	Function: _dir_rev_l
-	--------------------
-	Sets IN1/IN2 pins to move left motor reverse
- */
+
 void MotorDrive::_dir_rev_l()
 {
-	HAL_GPIO_WritePin(in1_l_port, in1_l_pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(in2_l_port, in2_l_pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(dir_l_port, dir_l_pin, GPIO_PIN_SET);
 }
-/*
-	Function: _dir_fwd_r
-	--------------------
-	Sets IN1/IN2 pins to move right motor forward
- */
+
 void MotorDrive::_dir_fwd_r()
 {
-	HAL_GPIO_WritePin(in1_r_port, in1_r_pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(in2_r_port, in2_r_pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(dir_r_port, dir_r_pin, GPIO_PIN_RESET);
 }
-/*
-	Function: _dir_rev_r
-	--------------------
-	Sets IN1/IN2 pins to move right motor reverse
- */
+
 void MotorDrive::_dir_rev_r()
 {
-	HAL_GPIO_WritePin(in1_r_port, in1_r_pin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(in2_r_port, in2_r_pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(dir_r_port, dir_r_pin, GPIO_PIN_SET);
 }
 
 /*

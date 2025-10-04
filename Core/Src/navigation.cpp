@@ -25,9 +25,9 @@
 /**
  * @brief Constructor for the Navigation class.
  * @param motor Pointer to the MotorDrive object for low-level control.
- * @param sensors Pointer to the VL53L0X_array object for distance sensing.
+ * @param sensors Pointer to the VL6180X_Array object for distance sensing.
  */
-Navigation::Navigation(MotorDrive* motor, VL53L0X_array* sensors) {
+Navigation::Navigation(MotorDrive* motor, VL6180X_Array* sensors) {
     p_motor_drive = motor;
     p_tof_sensors = sensors;
 
@@ -111,7 +111,7 @@ Walls Navigation::get_walls() {
     // Index 1: Front-Right sensor (tof_FR)
     // Index 2: Front-Left sensor (tof_FL)
     // Index 3: Left sensor (tof_L)
-    // The user must ensure VL53L0X_array is initialized with 4 sensors in this order.
+    // The user must ensure VL6180X_Array is initialized with 4 sensors in this order.
 
     uint16_t right_dist  = p_tof_sensors->get_distance(0);
     uint16_t frontR_dist = p_tof_sensors->get_distance(1);

@@ -1,14 +1,15 @@
 /*
  * motor_drive.h
  *
- *  Created on: Feb 21, 2024
- *      Author: Marto
+ * Created on: Feb 21, 2024
+ * Author: Marto
+ * Modified for 2-pin (PWM/DIR) driver.
  */
 
 #ifndef INC_MOTOR_DRIVE_H_
 #define INC_MOTOR_DRIVE_H_
 
-// PID params:
+// ... (Las macros y defines iniciales no cambian) ...
 #define PID_KP	0.5
 #define PID_KI	0.01
 #define PID_KD	0
@@ -19,8 +20,8 @@
 #define INIT_SPEED		250
 #define INIT_ACCEL		800
 // Phsyisical params:
-#define WHEEL_DIAM_MM	32.4
-#define ENCODER_PPR		2100
+#define WHEEL_DIAM_MM	30.5
+#define ENCODER_PPR		1080
 // Wall Following PID constants (require tuning)
 #define WALL_PID_KP 0.05
 #define WALL_PID_KI 0
@@ -44,9 +45,8 @@
 
 
 #include <math.h>
-#include "L3GD20.h"
 #include "tim.h"
-#include "vl53l0x.h"
+#include "VL6180X_Array.h"
 #include "gpio.h"
 #include "pid.h"
 
@@ -79,14 +79,11 @@ class MotorDrive
 		uint16_t pwm_l_timch;
 		uint16_t pwm_r_timch;
 		float ccr_scale;
-		GPIO_TypeDef *in1_l_port;
-		uint16_t in1_l_pin;
-		GPIO_TypeDef *in2_l_port;
-		uint16_t in2_l_pin;
-		GPIO_TypeDef *in1_r_port;
-		uint16_t in1_r_pin;
-		GPIO_TypeDef *in2_r_port;
-		uint16_t in2_r_pin;
+		// CAMBIO: Se reemplazan IN1/IN2 por un solo pin de dirección (DIR)
+		GPIO_TypeDef *dir_l_port;
+		uint16_t dir_l_pin;
+		GPIO_TypeDef *dir_r_port;
+		uint16_t dir_r_pin;
 		// PID:
 		bool pid_stop;
 		PID *Pid_l;
@@ -110,7 +107,7 @@ class MotorDrive
 		float mm_per_pulse;
 		bool pid_flag=false;
 		// Wall Following PID:
-		VL53L0X_array* p_tof_sensors;
+		VL6180X_Array* p_tof_sensors;
 		PID            *Pid_wall;
 		double         wall_pid_pv;
 		double         wall_pid_cv;
@@ -123,8 +120,6 @@ class MotorDrive
 		uint8_t        wall_sensor_hist_idx;
 		float          last_known_right_dist_mm;
 		float          last_known_left_dist_mm;
-		// Gyro:
-		L3GD20* gyro;
 		// Internal methods:
 		void _dir_fwd_l();
 		void _dir_rev_l();
@@ -133,9 +128,10 @@ class MotorDrive
 		void set_pwm_duty(double,double);
 
 	public:
-		MotorDrive(TIM_HandleTypeDef*, uint16_t, GPIO_TypeDef*, uint16_t, GPIO_TypeDef*, uint16_t,
-				TIM_HandleTypeDef*, uint16_t, GPIO_TypeDef*, uint16_t, GPIO_TypeDef*, uint16_t, L3GD20*,
-				int, int, VL53L0X_array*);
+		// CAMBIO: Constructor modificado para pines DIR
+		MotorDrive(TIM_HandleTypeDef* pwm_l, uint16_t pwm_ch_l, GPIO_TypeDef* dir_l_port, uint16_t dir_l_pin,
+				   TIM_HandleTypeDef* pwm_r, uint16_t pwm_ch_r, GPIO_TypeDef* dir_r_port, uint16_t dir_r_pin,
+				   int speed, int accel, VL6180X_Array* sensors);
 
 		void move_forward(int,uint32_t);
 		void turn(int angle_deg, uint32_t timeout_ms);
