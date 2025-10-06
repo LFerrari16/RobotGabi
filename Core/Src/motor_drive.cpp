@@ -85,6 +85,26 @@ MotorDrive::MotorDrive(
 	HAL_TIM_PWM_Start(pwm_r_tim, pwm_r_timch);
 }
 
+
+void MotorDrive::motor_test()
+{
+	_dir_fwd_r();
+	_dir_fwd_l();
+	set_pwm_duty(50,50);
+	HAL_Delay(2000);
+	set_pwm_duty(150,150);
+	HAL_Delay(2000);
+	set_pwm_duty(0,0);
+	HAL_Delay(500);
+	_dir_rev_r();
+	_dir_rev_l();
+	set_pwm_duty(50,50);
+	HAL_Delay(2000);
+	set_pwm_duty(150,150);
+	HAL_Delay(2000);
+}
+
+
 /*
 	Function: move_forward
 	--------------------

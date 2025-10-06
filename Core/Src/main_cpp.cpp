@@ -152,12 +152,13 @@ int main_cpp()
 	mySensors = new VL6180X_Array(&I2C_SENSORS, 4);
 
 	// Class setup. All parameters defined in Device config tool -> User constants/Pin labels:
+	// main_cpp.cpp (Línea Corregida)
 	myMotor = new MotorDrive(
-			&PWM_TIM, PWM_TIM_ChL_Pin,
-			IN1_L_GPIO_Port, IN1_L_Pin,
-			&PWM_TIM, PWM_TIM_ChR_Pin,
-			IN1_R_GPIO_Port, IN1_R_Pin,
-			INIT_SPEED, INIT_ACCEL, mySensors);
+    &htim3, TIM_CHANNEL_1,            // Motor Izq: TIM3, Canal 1
+    IN1_L_GPIO_Port, IN1_L_Pin,
+    &htim3, TIM_CHANNEL_3,            // Motor Der: TIM3, Canal 3
+    IN1_R_GPIO_Port, IN1_R_Pin,
+    INIT_SPEED, INIT_ACCEL, mySensors);
 	myMotor->set_sp(0,0);
 
 	myNavigation = new Navigation(myMotor, mySensors);
@@ -238,7 +239,7 @@ int main_cpp()
 					mySensors->ping();
 					char sensor_str[64];
 					int len = sprintf(sensor_str, "R:%d FR:%d FL:%d L:%d\r\n",
-							(int)mySensors->get_distance(0),
+							mySensors->get_distance(0),
 							mySensors->get_distance(1),
 							mySensors->get_distance(2),
 							mySensors->get_distance(3));
@@ -261,6 +262,9 @@ int main_cpp()
 					break;
 				case SET_BIAS:
 					myMotor->set_bias((double)command.param / 1000.0); // Divide by 1000 for fine control (e.g., send SB100 for bias=0.1)
+					break;
+				case MOTOR_TEST:
+					myMotor->motor_test();
 					break;
 			}
 		}

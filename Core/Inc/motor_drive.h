@@ -26,7 +26,7 @@
 #define WALL_PID_KP 0.05
 #define WALL_PID_KI 0
 #define WALL_PID_KD 0.002
-#define WALL_DISTANCE_SETPOINT_MM 74.0f // Desired distance to a single wall
+#define WALL_DISTANCE_SETPOINT_MM 94.5f // Desired distance to a single wall
 #define WALL_THRESHOLD_MM       150.0f // Wall detection threshold for side sensors
 #define WALL_SENSOR_FILTER_SIZE 5      // Number of samples to average for wall sensors
 #define SENSOR_READ_INTERVAL_TICKS 3   // Read sensors every N PID ticks (N * 10ms)
@@ -157,6 +157,7 @@ class MotorDrive
 		void enc_r_inc();
 		void enc_r_dec();
 		void update_pid();
+		void motor_test();
 		PidData_t get_pid_data();
 };
 

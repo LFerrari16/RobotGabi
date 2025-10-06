@@ -70,10 +70,13 @@ void Error_Handler(void);
 #define ENC_R_B_EXTI_IRQn EXTI1_IRQn
 #define ENC_R_A_Pin GPIO_PIN_2
 #define ENC_R_A_GPIO_Port GPIOA
+#define ENC_R_A_EXTI_IRQn EXTI2_IRQn
 #define ENC_L_A_Pin GPIO_PIN_3
 #define ENC_L_A_GPIO_Port GPIOA
+#define ENC_L_A_EXTI_IRQn EXTI3_IRQn
 #define ENC_L_B_Pin GPIO_PIN_4
 #define ENC_L_B_GPIO_Port GPIOA
+#define ENC_L_B_EXTI_IRQn EXTI4_IRQn
 #define PWM_TIM_ChL_Pin GPIO_PIN_6
 #define PWM_TIM_ChL_GPIO_Port GPIOA
 #define IN1_L_Pin GPIO_PIN_7

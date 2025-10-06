@@ -12,7 +12,7 @@
 #include "motor_drive.h"
 #include <string.h> // For strncmp
 
-#define COMM_NBR	17
+#define COMM_NBR	18
 #define	MOVE_FWD	0
 #define	MOVE_REV	1
 #define	SET_KP		2
@@ -30,6 +30,8 @@
 #define SET_ANGLE_KD 14
 #define	MOVE_CELLS	 15
 #define	SET_BIAS	 16
+#define	MOTOR_TEST	 17
+
 
 struct bt_command
 {
@@ -59,7 +61,8 @@ class BTcommander
 				{'a', 'i'},		// Set Angle Ki
 				{'a', 'd'},		// Set Angle Kd
 				{'m', 'c'},		// Move cells
-				{'s', 'b'}		// Set FF Bias
+				{'s', 'b'},		// Set FF Bias
+				{'m', 't'},		// Motor test
 
 		};
 	public:
